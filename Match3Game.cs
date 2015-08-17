@@ -1,4 +1,10 @@
-﻿using Microsoft.Xna.Framework;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Match3.Screen;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 
@@ -7,13 +13,15 @@ namespace Match3
     /// <summary>
     /// This is the main type for your game.
     /// </summary>
-    public class Game1 : Game
+    public class Match3Game : Game
     {
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
-
-        public Game1()
+        ScreenManager screenManager;
+        
+        public Match3Game()
         {
+            this.IsMouseVisible = true;
             graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
         }
@@ -27,8 +35,16 @@ namespace Match3
         protected override void Initialize()
         {
             // TODO: Add your initialization logic here
-
+            this.Window.AllowUserResizing = true;
+            this.Window.ClientSizeChanged += new EventHandler<EventArgs>(Window_ClientSizeChanged);
             base.Initialize();
+        }
+
+        void Window_ClientSizeChanged(object sender, EventArgs e)
+        {
+            //graphics.PreferredBackBufferWidth = Window.ClientBounds.Width;
+            //graphics.PreferredBackBufferHeight = Window.ClientBounds.Height;
+            //graphics.ApplyChanges();
         }
 
         /// <summary>
@@ -39,6 +55,12 @@ namespace Match3
         {
             // Create a new SpriteBatch, which can be used to draw textures.
             spriteBatch = new SpriteBatch(GraphicsDevice);
+            this.Services.AddService(spriteBatch);
+            Textures.Load(Content);
+            screenManager = new ScreenManager(this);
+            Services.AddService(screenManager);
+            screenManager.AddScreen(new BackgroundScreen(this));
+            screenManager.AddScreen(new MainScreen(this));
 
             // TODO: use this.Content to load your game content here
         }
@@ -62,7 +84,7 @@ namespace Match3
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
                 Exit();
 
-            // TODO: Add your update logic here
+            screenManager.Update(gameTime);
 
             base.Update(gameTime);
         }
@@ -75,7 +97,7 @@ namespace Match3
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
 
-            // TODO: Add your drawing code here
+            screenManager.Draw(gameTime);
 
             base.Draw(gameTime);
         }
