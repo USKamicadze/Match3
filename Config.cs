@@ -14,13 +14,17 @@ namespace Match3
         public static double animationSpeed = 1.5;
         public static double shift = 1;
         public static double shiftTime = 1e-2;
-        public static double moveAnimationSpeed = 1;
-        public static double overAnimationSpeed = 1;
-        public static float overAnimationAmplitude = 0.3f;
+        public static double moveAnimationSpeed = 1.5;
+        public static double overAnimationSpeed = 1.5;
+        public static float overAnimationAmplitude = 0.1f;
+        public static float lineBonusShift = 0.5f; //per msec
+        public static double glowingBallAnimationFrameDuration = 100;//milliseconds
+        public static double explosionAnimationFrameDuration = 50;
+        public static double bombBonusDuration = 250;//ms
         public static Color selectAnimationColor = Color.Lime;
         public static double destroyAnimationSpeed = 1;
         public static int scorePerElement = 10;
         public static Color textColor = Color.MediumSeaGreen;
-        public static int gameTime = 5; //seconds
+        public static int gameTime = 60; //seconds
     }
 }
