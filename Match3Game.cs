@@ -47,16 +47,15 @@ namespace Match3
         /// </summary>
         protected override void LoadContent()
         {
-            // Create a new SpriteBatch, which can be used to draw textures.
             spriteBatch = new SpriteBatch(GraphicsDevice);
-            this.Services.AddService(spriteBatch);
+            Services.AddService(spriteBatch);
+            spriteRender = new SpriteRender(this.spriteBatch);
+            Services.AddService(spriteRender);
             Textures.Load(Content);
             screenManager = new ScreenManager(this);
             Services.AddService(screenManager);
             screenManager.AddScreen(new BackgroundScreen(this));
             screenManager.AddScreen(new MainScreen(this));
-
-            // TODO: use this.Content to load your game content here
         }
 
         /// <summary>
