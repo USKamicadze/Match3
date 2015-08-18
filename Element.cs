@@ -8,6 +8,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 namespace Match3
 {
+
     class Element : Clickable
     {
 
@@ -23,8 +24,17 @@ namespace Match3
             Empty
         }
 
+        public enum Bonus
+        {
+            LineHorizontal,
+            LineVertical,
+            Bomb
+        };
+
         public int col;
         public int row;
+        public Bonus? bonus = null;
+        private ElementAnimation bonusAnimation = null;
         public Type type { get; private set; }
         public Texture2D texture;
         public Color color = Color.White;
@@ -38,6 +48,8 @@ namespace Match3
         private Dictionary<System.Type, ElementAnimation> animations = new Dictionary<System.Type, ElementAnimation>();
         private HashSet<System.Type> animationsToRemove = new HashSet<System.Type>();
         private Dictionary<System.Type, ElementAnimation> animationsToAdd = new Dictionary<System.Type, ElementAnimation>();
+        public double lastMoved = -1;
+        public bool dying = false;
 
         public Element(Game game, int col, int row, Type type, Rectangle rect) : base(game, rect)
         {
