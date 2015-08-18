@@ -8,6 +8,8 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 
+using TexturePackerLoader;
+
 namespace Match3
 {
     /// <summary>
@@ -17,6 +19,7 @@ namespace Match3
     {
         GraphicsDeviceManager graphics;
         SpriteBatch spriteBatch;
+        SpriteRender spriteRender;
         ScreenManager screenManager;
         
         public Match3Game()
@@ -35,16 +38,7 @@ namespace Match3
         protected override void Initialize()
         {
             // TODO: Add your initialization logic here
-            this.Window.AllowUserResizing = true;
-            this.Window.ClientSizeChanged += new EventHandler<EventArgs>(Window_ClientSizeChanged);
             base.Initialize();
-        }
-
-        void Window_ClientSizeChanged(object sender, EventArgs e)
-        {
-            //graphics.PreferredBackBufferWidth = Window.ClientBounds.Width;
-            //graphics.PreferredBackBufferHeight = Window.ClientBounds.Height;
-            //graphics.ApplyChanges();
         }
 
         /// <summary>
@@ -85,7 +79,6 @@ namespace Match3
                 Exit();
 
             screenManager.Update(gameTime);
-
             base.Update(gameTime);
         }
 
@@ -96,9 +89,7 @@ namespace Match3
         protected override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(Color.CornflowerBlue);
-
             screenManager.Draw(gameTime);
-
             base.Draw(gameTime);
         }
     }
