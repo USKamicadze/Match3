@@ -136,7 +136,8 @@ namespace Match3
         public override void Update(GameTime gameTime)
         {
             if (type == Type.Empty) return;
-            UpdateAnimations(gameTime);   
+            UpdateAnimations(gameTime);
+            if (bonusAnimation != null) bonusAnimation.Update(gameTime);
             base.Update(gameTime);
         }
 
@@ -159,9 +160,26 @@ namespace Match3
                 effects, 
                 layerDepth
             );
+            if (bonusAnimation != null) bonusAnimation.Draw(gameTime);
             spriteBatch.End();
+            
             base.Draw(gameTime);
         }
 
+        public void SetBonus(Bonus bonus)
+        {
+            switch (bonus){
+                case Bonus.LineHorizontal : bonusAnimation = new HorizontalLineBonusElementAnimation(Game, this); break;
+                case Bonus.LineVertical : bonusAnimation = new VerticalLineBonusElementAnimation(Game, this); break;
+                case Bonus.Bomb : bonusAnimation = new BombElementAnimation(Game, this); break;
+            }
+            this.bonus = bonus;
+        }
+
+        public void RemoveBonus()
+        {
+            this.bonus = null;
+            this.bonusAnimation = null;
+        }
     }
 }
