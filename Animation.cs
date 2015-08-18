@@ -6,6 +6,8 @@ using System.Text;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+
+using TexturePackerLoader;
 namespace Match3
 {
     abstract class ElementAnimation : DrawableGameComponent
@@ -217,4 +219,68 @@ namespace Match3
         }
     }
 
+
+    class ElementAnimationWithTexture : ElementAnimation
+    {
+        protected AnimatedTexture texture;
+
+        public ElementAnimationWithTexture(Game game, Element el, AnimatedTexture texture): base(game, 1, el)
+        {
+            this.texture = texture;
+        }
+
+        public override void Update(GameTime gameTime)
+        {
+            texture.Update(gameTime);
+            //base.Update(gameTime);
+        }
+
+        public override void Draw(GameTime gameTime)
+        {
+            //base.Draw(gameTime);
+        }
+    }
+    class LineBonusElementAnimation : ElementAnimationWithTexture
+    {
+        protected Point offset;
+        public LineBonusElementAnimation(Game game, Element el, Point offset)
+            : base(game, el, new GlowingBallTexture(game.GraphicsDevice, 16, 16))
+        {
+            this.offset = offset;
+        }
+        
+
+        public override void Draw(GameTime gameTime)
+        {
+            SpriteRender spriteRender = Game.Services.GetService<SpriteRender>();
+            texture.Draw(gameTime, spriteRender, (element.rectangle.Center + offset).ToVector2(), 1);
+            texture.Draw(gameTime, spriteRender, (element.rectangle.Center - offset).ToVector2(), 1);
+            base.Draw(gameTime);
+        }
+    }
+    class HorizontalLineBonusElementAnimation : LineBonusElementAnimation
+    {
+        public HorizontalLineBonusElementAnimation(Game game, Element el) : base(game, el, new Point(16, 0)) { }
+    }
+
+    class VerticalLineBonusElementAnimation : LineBonusElementAnimation
+    {
+        public VerticalLineBonusElementAnimation(Game game, Element el) : base(game, el, new Point(0, 16)) { }
+    }
+
+    class BombElementAnimation : ElementAnimationWithTexture
+    {
+        public BombElementAnimation(Game game, Element el)
+            : base(game, el, new BombBonusTexture(game.GraphicsDevice, 10, 10))
+        {
+        }
+
+        public override void Draw(GameTime gameTime)
+        {
+            SpriteRender spriteRender = Game.Services.GetService<SpriteRender>();
+            texture.Draw(gameTime, spriteRender, element.rectangle.Center.ToVector2(), 1);
+            base.Draw(gameTime);
+        }
+
+    }
 }
