@@ -1,0 +1,15 @@
+#
+# Sprite sheet data for MonoGame.
+#
+# To learn how to import these sprites into your MonoGame project visit:
+# http://www.codeandweb.com/texturepacker/monogame
+#
+# Sprite sheet: bombBonus.png (128 x 32)
+# $TexturePacker:SmartUpdate:f46ae08e52c927b648ce88860ea97fd3:666bc82f3831cf026e6cf9897f3937ea:e343e45be729c5b588cf49167b7c8260$
+#
+
+bomb_bonus_1;0;85;2;16;26;32;32;0.5;0.5384615384615384
+bomb_bonus_2;0;103;2;23;25;32;32;0.4782608695652174;0.56
+bomb_bonus_3;0;60;2;23;26;32;32;0.4782608695652174;0.5384615384615384
+bomb_bonus_4;0;2;2;27;27;32;32;0.48148148148148145;0.5185185185185185
+bomb_bonus_5;0;31;2;27;27;32;32;0.48148148148148145;0.5185185185185185
