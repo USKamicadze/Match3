@@ -7,6 +7,8 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 
+using TexturePackerLoader;
+
 namespace Match3
 {
     class Field : DrawableGameComponent
@@ -18,6 +20,8 @@ namespace Match3
         private Element selected = null;
         private Rectangle tile;
         private Vector2 leftTop;
+        private GameTime gameTime;
+      
 
         private int destroyAnimations = 0;
         private int moveAnimations = 0;
@@ -60,6 +64,140 @@ namespace Match3
                         
         }
 
+        class ActivatedBonusBase : DrawableGameComponent
+        {
+            public float scale = 1;
+            public bool ended = false;
+            public ActivatedBonusBase(Game game) : base(game) {}
+            
+        }
+
+        class LineBonus : ActivatedBonusBase
+        {
+            float shift;
+            Vector2 start;
+            Vector2 position;
+            Vector2 end;
+            float duration = 1;
+            float elapsed = 0;
+            AnimatedTexture texture;
+
+            public delegate void LineBonusEventHandler(LineBonus lineBonus, LineBonusEventAgrs e);
+            public event LineBonusEventHandler onEnd;
+            public event LineBonusEventHandler onUpdate;
+            
+            public class LineBonusEventAgrs : EventArgs
+            {
+                public Vector2 prevPosition;
+                public Vector2 newPosition;
+                public LineBonusEventAgrs(Vector2 prevPosition, Vector2 newPosition)
+                {
+                    this.prevPosition = prevPosition;
+                    this.newPosition = newPosition;
+                }
+            }
+            public LineBonus(Game game, Vector2 start, Vector2 end, Vector2 dir, float shift) : base (game)
+            {
+                this.texture =  new GlowingBallTexture(game.GraphicsDevice, 16, 16);
+                this.shift = shift;
+                this.position = start;
+                this.end = end + dir * Config.tile.Size.ToVector2() / 2;
+                this.start = start;
+                Vector2 d = (this.start - this.end) / shift;
+                this.duration = Math.Abs(d.X - d.Y);
+                this.position = start;
+            }
+
+            public override void Update(GameTime gameTime)
+            {
+                float elapsedGameTime = (float) gameTime.ElapsedGameTime.TotalMilliseconds;
+                if (!ended) {
+                    elapsed += elapsedGameTime;
+                    Vector2 prevPos = position;
+                    position = start + (end - start) * elapsed / duration;
+                    texture.Update(gameTime);
+                    if (onUpdate != null)
+                        onUpdate(this, new LineBonusEventAgrs(prevPos, position));
+                    if (duration < elapsed) {
+                        ended = true;
+                        position = end;
+                        if (onEnd != null)
+                            onEnd(this, new LineBonusEventAgrs(prevPos, position));
+                    }
+                }
+                base.Update(gameTime);
+            }
+
+            public override void Draw(GameTime gameTime)
+            {
+                if (!ended) {
+                    SpriteBatch sb = Game.Services.GetService<SpriteBatch>();
+                    SpriteRender sr = Game.Services.GetService<SpriteRender>();
+                    sb.Begin();
+                    texture.Draw(gameTime, sr, position, scale);
+                    sb.End();
+                    base.Draw(gameTime);
+                }
+            }
+            
+        }
+
+        class BombBonus : ActivatedBonusBase        {
+
+            
+            public Element el {get; private set;}
+            AnimatedTexture explosionTexture;
+            double elapsed = 0;
+            bool exploded = false;
+            public delegate void BombBonusEventHandler(BombBonus bombBonus);
+            public event BombBonusEventHandler onExplosion;
+            public BombBonus(Game game, Element el)
+                : base(game)
+            {
+                this.explosionTexture = new ExplosionTexture(GraphicsDevice, Config.tile.Width * 3, Config.tile.Height * 3);
+                this.el = el;
+                this.scale = 5;
+            }
+
+            public override void Update(GameTime gameTime)
+            {
+                elapsed += gameTime.ElapsedGameTime.TotalMilliseconds;
+                if (elapsed < Config.bombBonusDuration) {
+                    float v = 255 - (float)(255 * elapsed / Config.bombBonusDuration);
+                    el.color = new Color(255, v, v);
+                } else if (!exploded) {
+                    exploded = true;
+                    el.color = Color.Red;
+                    if (onExplosion != null)
+                        onExplosion(this);
+                }
+                if (exploded)
+                    explosionTexture.Update(gameTime);
+                if (explosionTexture.ended) ended = true;
+                base.Update(gameTime);
+            }
+
+            public override void Draw(GameTime gameTime)
+            {
+                if (!ended) {
+                    if (!exploded) {
+                        if (el.dying)
+                            el.Draw(gameTime);
+                    } else {
+                        SpriteBatch sb = Game.Services.GetService<SpriteBatch>();
+                        SpriteRender sr = Game.Services.GetService<SpriteRender>();
+                        sb.Begin();
+                        explosionTexture.Draw(gameTime, sr, el.rectangle.Center.ToVector2(), scale);
+                        sb.End();
+                    }
+                }
+                base.Draw(gameTime);
+            }
+
+        }
+
+        private List<ActivatedBonusBase> activatedBonuses = new List<ActivatedBonusBase>(); 
+
         private Info info = new Info();
         static private Element EMPTY;
 
@@ -71,11 +209,21 @@ namespace Match3
 
         Element CreateRandomElement(int col, int row, Rectangle rect)
         {
-            Element el =  new Element(Game,  col, row, (Element.Type)gen.Next((int)Element.Type.COUNT - 1), rect);
+            return CreateElement(col, row, (Element.Type)gen.Next((int)Element.Type.COUNT), rect);
+        }
+
+        Element CreateElement(int col, int row,  Element.Type type, Rectangle rect)
+        {
+            Element el = new Element(Game, col, row, type, rect);
             el.onMouseUp += onMouseUpElement;
             el.onMouseIn += onMouseInElement;
             el.onMouseOut += onMouseOutElement;
             return el;
+        }
+
+        Element CloneElement(Element el)
+        {
+            return CreateElement(el.col, el.row, el.type, el.rectangle);
         }
         void Init()
         {
@@ -87,6 +235,7 @@ namespace Match3
                 for (int j = 0; j < size; ++j) {
                     Element el = CreateRandomElement(j , i, GetRectangleByColAndRow(j, i));
                     field[i, j] = el;
+                    el.lastMoved = i * size + j;
                 }
             }
         }
@@ -94,7 +243,7 @@ namespace Match3
         private void MouseUpElementEventHandler(Object element)
         {
             Element el = element as Element;
-            if (moveAnimations > 0 || destroyAnimations > 0 || info.lastTurn != null || selected == el) return;
+            if (moveAnimations > 0 || destroyAnimations > 0 || activatedBonuses.Count > 0 || info.lastTurn != null || selected == el) return;
             if (selected != null) {
                 if (CellsIsNear(selected, el)) {
                     AddTurn(el);
@@ -131,7 +280,7 @@ namespace Match3
         private void TurnEndEventHandler(Object element)
         {
             SwapElements(info.lastTurn.from, info.lastTurn.to);
-            if (ChainExists()) {
+            if (MatchExists()) {
                 info.lastTurn = null;
             } else {
                 AddSwapAnimation(info.lastTurn, onBadTurnEnd);
@@ -150,7 +299,7 @@ namespace Match3
         {
             --moveAnimations;
         }
-
+        
         private void onMouseUpElement(Object Sender, EventArgs e)
         {
             events.Add(new GameEvent(Sender, MouseUpElementEventHandler));
@@ -192,25 +341,171 @@ namespace Match3
             AddSwapAnimation(info.lastTurn, onTurnEnd);
         }
 
-        private void FindChainsAndDestroy()
+
+        private void onBombBonusExplosion(BombBonus bombBonus)
         {
-            HashSet<Element> chains = FindChains();
-            if (chains.Count > 0) {
-                //toDestroy.UnionWith(chains);
-                foreach (Element mustDie in chains) {
-                    ++destroyAnimations;
-                    mustDie.onMouseUp -= onMouseUpElement;
-                    mustDie.onMouseIn -= onMouseInElement;
-                    mustDie.onMouseOut -= onMouseOutElement;
-                    DestroyElementAnimation destroyAnimation = new DestroyElementAnimation(Game, mustDie);
-                    destroyAnimation.onEnd += onDestroyElementEnd;
-                    mustDie.RemoveAnimation<OverElementAnimation>();
-                    mustDie.AddAnimation(destroyAnimation);
+            int row = bombBonus.el.row;
+            int col = bombBonus.el.col;
+            for (int i = row - 1; i < row + 2; ++i) {
+                if (OutOfRange(i)) continue;
+                for (int j = col - 1; j < col + 2; ++j) {
+                    if (OutOfRange(j)) continue;
+                    DestroyElement(field[i, j]);
                 }
             }
         }
 
-        private bool ChainExists()
+        private void MakeExplosion(Element el)
+        {
+            BombBonus bombBonus = new BombBonus(Game, el);
+            bombBonus.onExplosion += onBombBonusExplosion;
+            activatedBonuses.Add(bombBonus);
+        }
+
+        private List<Element> GetElementsBetweenPositions(Point pos1, Point pos2)
+        {
+            List<Element> res = new List<Element>();
+            Element el1 = GetElementByPosition(pos1);
+            Element el2 = GetElementByPosition(pos2);
+            Vector2 d = (pos2 - pos1).ToVector2();
+            d.Normalize();
+            Point dir = d.ToPoint();
+            Point countV = (pos2 - pos1) / Config.tile.Size;
+            int count = Math.Abs(countV.X + countV.Y);
+            Point curPos = pos1;
+            for (Element cur = el1; cur != el2; cur = GetElementByPosition(curPos)) {
+                curPos = curPos + dir * Config.tile.Size;
+                res.Add(cur);
+            }
+            res.Add(el2);
+            return res;
+        }
+
+        private void DestroyElement(Element el)
+        {
+            if (el.dying || el == EMPTY) return;
+            ++destroyAnimations;
+            el.dying = true;
+            el.onMouseUp -= onMouseUpElement;
+            el.onMouseIn -= onMouseInElement;
+            el.onMouseOut -= onMouseOutElement;
+            DestroyElementAnimation destroyAnimation = new DestroyElementAnimation(Game, el);
+            destroyAnimation.onEnd += onDestroyElementEnd;
+            el.RemoveAnimation<OverElementAnimation>();
+            el.AddAnimation(destroyAnimation);
+            ActivateBonus(el);
+        }
+
+        private void onLineBonusUpdate(LineBonus linebonus, LineBonus.LineBonusEventAgrs lineEventArgs)
+        {
+            List<Element> elements = GetElementsBetweenPositions(
+                lineEventArgs.prevPosition.ToPoint(), lineEventArgs.newPosition.ToPoint()
+            );
+            foreach (Element el in elements)
+                DestroyElement(el);
+        }
+
+        private LineBonus CreateLineBonus(Element el, int colEnd, int rowEnd, Vector2 dir)
+        {
+            LineBonus res =  new LineBonus(Game,
+                el.rectangle.Center.ToVector2(),
+                GetRectangleByColAndRow(colEnd, rowEnd).Center.ToVector2(),
+                dir,
+                Config.lineBonusShift);
+            res.onUpdate += onLineBonusUpdate;
+            res.onEnd += onLineBonusUpdate;
+            return res;
+        }
+        private void LaunchDestroyers(Element el)
+        {
+            if (el.bonus == Element.Bonus.LineHorizontal) {
+                int i = el.row;
+                activatedBonuses.Add(CreateLineBonus(el, size - 1, i, new Vector2(1, 0)));
+                activatedBonuses.Add(CreateLineBonus(el, 0, i, new Vector2(-1, 0)));
+            } else {
+                int i = el.col;
+                activatedBonuses.Add(CreateLineBonus(el, i, size - 1, new Vector2(0, 1)));
+                activatedBonuses.Add(CreateLineBonus(el, i, 0, new Vector2(0, -1)));
+            }
+        }
+        private void ActivateBonus(Element el){
+            switch (el.bonus) {
+                case Element.Bonus.Bomb: MakeExplosion(el); break;
+                case Element.Bonus.LineVertical:
+                case Element.Bonus.LineHorizontal: LaunchDestroyers(el); break;
+            }
+            el.RemoveBonus();
+        }
+
+        private Element GetLastMoved(IEnumerable<Element> e)
+        {
+            Element res = e.First();
+            foreach (Element el in e) {
+                if (res.lastMoved < el.lastMoved) {
+                    res = el;
+                }
+            }
+            return res;
+        }
+
+        private List<Element>[,] FindAllMatches()
+        {
+            List<Element>[,] matchedElements = new List<Element>[size, size];
+            for (int i = 0; i < size; ++i) {
+                for (int j = 0; j < size; ++j) {
+                    List<Element> matchedForCur = matchedElements[i, j] = new List<Element>();
+                    Element el = field[i, j];
+                    if (el == EMPTY) continue;
+                    Element.Type type = el.type;
+                    Point start = new Point(j, i);
+                    List<Element> vert = GetSameElementsInLine(start, new Point(0, -1), type);
+                    vert.AddRange(GetSameElementsInLine(start, new Point(0, 1), type));
+                    List<Element> horiz = GetSameElementsInLine(start, new Point(-1, 0), type);
+                    horiz.AddRange(GetSameElementsInLine(start, new Point(1, 0), type));
+                    if (horiz.Count >= 3 + 1) //el in list 2 times
+                        matchedForCur.AddRange(horiz);
+                    if (vert.Count >= 3 + 1)
+                        matchedForCur.AddRange(vert);
+                    matchedElements[i, j] = matchedForCur.Distinct().ToList();
+                }
+            }
+            return matchedElements;
+        }
+        private void FindMatchesAndDestroy()
+        {
+            List<Element>[,] matchedElements = FindAllMatches();
+            for (int i = 0; i < size; ++i) {
+                for (int j = 0; j < size; ++j) {
+                    Element el = field[i, j];
+                    List<Element> curMatched = matchedElements[i,j];
+                    if (el == EMPTY || curMatched.Count < 3) continue;
+                    if (curMatched.Count > 3 &&
+                       (
+                                curMatched.TrueForAll(e => 
+                                    matchedElements[e.row, e.col].Count < curMatched.Count)
+                            || (
+                                    GetLastMoved(curMatched) == el 
+                                && curMatched.TrueForAll(e =>
+                                    matchedElements[e.row, e.col].Count <= curMatched.Count))
+                       )
+                    ){
+                        ActivateBonus(el);
+                        if (curMatched.Count == 4){
+                            Element el2 = curMatched.Find(e => e != el);
+                            el.SetBonus(el.col - el2.col == 0 ?
+                                Element.Bonus.LineVertical : Element.Bonus.LineHorizontal);
+                        } else {
+                            el.SetBonus(Element.Bonus.Bomb);
+                        }
+                    } else {
+                        DestroyElement(el);
+                    }
+                }
+            }
+            
+        }
+
+        private bool MatchExists()
         {
             for (int i = 0; i < size; ++i) {
                 for (int j = 0; j < size; ++j) {
@@ -223,43 +518,44 @@ namespace Match3
             }
             return false;
         }
-        private HashSet<Element> FindChains()
-        {
-            HashSet<Element> chains = new HashSet<Element>();
-            for (int i = 0; i < size; ++i) {
-                for (int j = 0; j < size; ++j) {
-                    if (field[i, j] == EMPTY) continue;
-                    Element.Type type = field[i, j].type;
-                    int countX = CalcLine(new Point(j, i), new Point(1, 0), type);
-                    int countY = CalcLine(new Point(j, i), new Point(0, 1), type);
-                    chains.UnionWith(GetLineOf3plusElements(new Point(j, i), new Point(1, 0), countX));
-                    chains.UnionWith(GetLineOf3plusElements(new Point(j, i), new Point(0, 1), countY));
-                }
-            }
-            return chains;
-        }
         
         private int CalcLine(Point start, Point shift, Element.Type type)
         {
             int count = 0;
-            for (Point cur = start; cur.X < size && cur.Y < size && GetElementByPoint(cur).type == type; cur += shift)
+            for (Point cur = start; 0 <= cur.X && cur.X < size && 0 <= cur.Y && cur.Y < size && GetElementByPoint(cur).type == type; cur += shift)
                 ++count;
             return count;
         }
 
-        private IList<Element> GetLineOf3plusElements(Point start, Point shift, int count)
+        private List<Element> GetSameElementsInLine(Point start, Point shift, Element.Type type)
         {
-            IList<Element> line = new List<Element>();
-            if (count < 3) return line;
-            Point cur = start;
-            for ( int v = 0; v < count; ++v, cur += shift) {
+            List<Element> line = new List<Element>();
+            for (Point cur = start; 
+                    !OutOfRange(cur)
+                    && GetElementByPoint(cur).type == type; 
+                cur += shift) 
+            {
                 line.Add(GetElementByPoint(cur));
             }
             return line;
         }
 
+        private Element GetElementByPosition(Point position)
+        {
+            return GetElementByPoint((position - leftTop.ToPoint()) / Config.tile.Size);
+        }
+        private bool OutOfRange(int i)
+        {
+            return i < 0 || size - 1 < i;
+        }
+
+        private bool OutOfRange(Point p)
+        {
+            return OutOfRange(p.X) || OutOfRange(p.Y);
+        }
         private Element GetElementByPoint(Point p)
         {
+            if (OutOfRange(p)) return EMPTY;
             return field[p.Y, p.X];
         }
         private void SwapElements(Point a, Point b)
@@ -327,6 +623,7 @@ namespace Match3
             MoveElementAnimation res = new MoveElementAnimation(Game, el, dest, duration);
             res.onEnd += MoveAnimationEnd;
             el.AddAnimation(res);
+            el.lastMoved = gameTime.TotalGameTime.TotalMilliseconds + moveAnimations * 1.0 / 1000 ;
             ++moveAnimations;
             return res;
         }
@@ -338,7 +635,7 @@ namespace Match3
                         int k = i;
                         while (k >= 0 && field[k, j] == EMPTY) --k;
                         Element el;
-                        if (k >= 0) { //non empty cell finded
+                        if (k >= 0) { //non empty cell found
                             el = field[k, j];
                             AddMoveAnimation(el, GetRectangleByColAndRow(j, i));
                             field[k, j] = EMPTY;
@@ -375,16 +672,23 @@ namespace Match3
             }
             events.Clear();
         }
+
+        private void UpdateBonuses(GameTime gameTime)
+        {
+            activatedBonuses = activatedBonuses.FindAll((ActivatedBonusBase b) => !b.ended);
+            activatedBonuses.ForEach((ActivatedBonusBase b) => b.Update(gameTime));
+        }
         public override void Update(GameTime gameTime)
         {
-
-            if (destroyAnimations == 0 && moveAnimations == 0) {
-                FindChainsAndDestroy();
+            this.gameTime = gameTime; 
+            if (activatedBonuses.Count == 0 && destroyAnimations == 0 && moveAnimations == 0) {
+                FindMatchesAndDestroy();
                 MakeElementFall();
             }
             if (events.Count == 0) {
                 UpdateElements(gameTime);
             }
+            UpdateBonuses(gameTime);
             UpdateEvents(gameTime);
         }
 
@@ -401,6 +705,7 @@ namespace Match3
         public override void Draw(GameTime gameTime)
         {
             DrawElements(gameTime);
+            activatedBonuses.ForEach((ActivatedBonusBase b) => b.Draw(gameTime));
         }
 
         public int GetScore()
